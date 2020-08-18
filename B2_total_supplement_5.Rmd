@@ -1,0 +1,272 @@
+---
+title: "Final evaluation of total aphids (22.06.2018)"
+author: "Niemann, Menssen, Poehling (2020)"
+output:
+  word_document: default
+  pdf_document: default
+editor_options:
+  chunk_output_type: console
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache=TRUE, message=FALSE, error=FALSE, warning=FALSE)
+
+```
+
+```{r, echo=FALSE, message=FALSE}
+
+# Loading some packages
+
+# Data management and plots
+library(tidyverse)
+
+
+# Multiple comparisons and confidence intervals
+library(emmeans)
+
+# For mixed model
+library(lme4)
+library(lmerTest)
+
+```
+
+
+```{r, echo=FALSE}
+# setwd("C:/Users/Menssen/Desktop/Beratung/niemann_jan_uwe/neg_bin_counts")
+
+dat_raw <- read.csv2("Bonitur_2final.csv", header=TRUE, strip.white=TRUE)
+
+dat_raw$Plot <- factor(dat_raw$P)
+dat_raw$Reihe <- factor(dat_raw$Prow)
+dat_raw$Reihe_Plot <- dat_raw$Reihe:dat_raw$Plot
+dat_raw$inpl <- factor(dat_raw$inpl)
+
+
+# Im Datensatz fehlt die Variable pnr. Hab die jetzt aus Bonitur 1 genommen und 
+# an diesen Datensatz dran gebaut. Bitte noch mal im original-Datensatz ändern!!!
+# dat_raw$Pnr <- factor(read.csv2("Bonitur_1eng.csv", header=TRUE, strip.white=TRUE)$Pnr)
+
+
+# str(dat)
+```
+
+
+
+```{r,  echo=FALSE, message=FALSE}
+# Building sums
+datsum <- dat_raw %>% 
+        dplyr::select(-(rep)) %>%
+        group_by(Var, Plot, inpl) %>% 
+        summarize(aphids_sum=sum(aphtot),
+                  n=n(),
+                  scaled_sum=((aphids_sum+1)/n)) %>% 
+  rename("var"=Var, 
+         "plot"=Plot)
+  
+```
+
+
+### Data
+The statistical analysis was run on the following data set called `datsum` with the variables:
+
+* _Var:_ Different treatments
+* _Plot:_ Plots on the field
+* _inpl:_ Location of the lettuce plants in the plots (0: border, 1: center )
+* _aphids_sum:_  sum of aphids per location in each plot
+* _n:_ Number of lettuce plants for each sum
+* _scaled_sum:_ scaled sums calculated as (aphids_sum+1)/n 
+
+```{r, echo=FALSE, tab.cap="First rows of datsum"}
+
+# datsum <- data.frame(datsum)
+datsum %>% 
+  mutate(scaled_sum=round(scaled_sum, 3)) %>% 
+  knitr::kable(caption="Summed total number of aphids")
+```
+
+\newpage
+
+### Statistical analysis
+A linear mixed model was fit to the data as described in the text
+
+```{r,  eval=FALSE, message=FALSE}
+library(lme4)
+
+lmm_fit <- lmer(log(scaled_sum) ~ var * inpl + (1|plot), data=datsum)
+```
+
+```{r, echo=FALSE, message=FALSE}
+
+lmm_fit <- lmer(log(scaled_sum) ~ var * inpl + (1|plot), data=datsum)
+
+```
+
+
+### ANOVA
+```{r, eval=FALSE}
+library(lmerTest)
+
+anova(lmm_fit)
+```
+
+```{r, echo=FALSE}
+
+
+ano_df <- anova(lmm_fit) %>% 
+  data.frame() %>% 
+  rename("SSQ"=Sum.Sq,
+         "MSQ"=Mean.Sq,
+         "F_value"=F.value,
+         "p_Value"=Pr..F.) %>% 
+  mutate(SSQ=round(SSQ, 3),
+         MSQ=round(MSQ, 3),
+         DenDF=round(DenDF),
+         F_value=round(F_value, 3),
+         p_Value=round(p_Value, 3))
+  
+Effect <- c("var", "inpl", "var:inpl")
+
+
+ano_df <- cbind(Effect, ano_df)
+
+ano_df %>% 
+  knitr::kable(caption="ANOVA table")
+```
+
+The ANOVA (table 2) revealed the significance ($\alpha=0.05$) of the treatment (Var) 
+since the p-value is 0.025, but no location effect (inpl) nor a 
+treatment-location interaction (Var:inpl). 
+
+\newpage
+
+### Mean comparisons between the treatments
+The mean comparisons were run on the logarithm of the scaled sums (as the model does),
+but are already back transformed to the original scale for easier interpretation.
+The least square means of the scaled sums for each treatment, their standard error
+and their 95% confidence intervals are given in table 3. 
+
+
+```{r, eval=FALSE, message=FALSE, warning=FALSE}
+
+# Model based least square means and ther comparisons
+library(emmeans)
+lmm_comp <- emmeans(lmm_fit, specs="var", contr="pairwise", type="response")
+
+```
+
+```{r, eval=FALSE, message=FALSE, warning=FALSE}
+# LS-means for the treatments
+lmm_comp$emmeans
+```
+
+```{r, echo=FALSE, , message=FALSE, warning=FALSE}
+lmm_comp <- emmeans(lmm_fit, specs="var", contr="pairwise", type="response")
+as.data.frame(lmm_comp$emmeans) %>%
+        rename("mean"=response,
+               "se"=SE,
+               "lower"=lower.CL,
+               "upper"=upper.CL) %>% 
+        mutate(mean=round(mean, 3),
+               se=round(se, 3),
+               lower=round(lower, 3),
+               upper=round(upper, 3)) %>% 
+        knitr::kable(caption="Least square means and their confidence intervals")
+```
+
+
+The mean comparisons (contrasts) were run as differences on the log-scale. Therefore
+back transformation results in the ratio between the means of the scaled sums. These
+ratios, their standard error and the corresponding p-values are given in table 4.
+```{r, eval=FALSE}
+# Contrast tests
+lmm_comp$contrasts
+```
+
+
+```{r, echo=FALSE, message=FALSE}
+# lmm_comp <- emmeans(lmm_fit, specs="var", type="response", contr="pairwise")
+
+# contr <- lmm_comp$contrasts
+
+as.data.frame(lmm_comp$contrasts) %>% 
+        rename("se"=SE,
+               "t_ratio"=t.ratio,
+               "p_value"=p.value) %>% 
+        mutate(ratio=round(ratio, 3),
+               se=round(se, 3),
+               t_ratio=round(t_ratio, 3),
+               p_value=round(p_value, 3)) %>% 
+        knitr::kable(caption="Contrasts and p-values")
+```
+
+\newpage
+
+### Location effect 
+The model based average scaled sums for each location were compared on log-scale. 
+Back-transformations results in a ratio between both sums (0: border plant, 1: inner plant).
+Please note that the ratio is not significantly different from zero.
+```{r, message=FALSE, warning=FALSE}
+
+# Model based least square means and ther comparisons for the location effect 
+lmm_comp_inpl <- emmeans(lmm_fit, specs="inpl",  
+                         contr="pairwise", type="response")
+
+```
+
+```{r, eval=FALSE}
+# Ratio between the mean scaled sums for each location 
+lmm_comp_inpl$contrasts
+```
+
+
+```{r, echo=FALSE}
+as.data.frame(lmm_comp_inpl$contrasts) %>% 
+        rename("se"=SE,
+               "t_ratio"=t.ratio,
+               "p_value"=p.value) %>% 
+        mutate(ratio=round(ratio, 3),
+               se=round(se, 3),
+               t_ratio=round(t_ratio, 3),
+               p_value=round(p_value, 3)) %>% 
+        knitr::kable(caption="Ratios of scaled sums between the locations")
+```
+
+
+### Location effect in each treatment
+
+Ratios between the scaled sums of the border plants (0) and the inner plants (1) 
+split by the treatments are given in Tab. 6 . Please note, that none of these 
+ratios is significantly different from zero.
+
+```{r, message=FALSE, warning=FALSE}
+
+# Model based least square means and ther comparisons for the location effect 
+# in each treatment
+lmm_comp_inter <- emmeans(lmm_fit, specs="inpl", by="var", 
+                         contr="pairwise", type="response")
+
+```
+
+```{r, eval=FALSE}
+# Ratios
+lmm_comp_inter$contrasts
+```
+
+
+```{r, echo=FALSE}
+as.data.frame(lmm_comp_inter$contrasts) %>% 
+        rename("se"=SE,
+               "t_ratio"=t.ratio,
+               "p_value"=p.value) %>% 
+        mutate(ratio=round(ratio, 3),
+               se=round(se, 3),
+               t_ratio=round(t_ratio, 3),
+               p_value=round(p_value, 3)) %>% 
+        knitr::kable(caption="Ratios of scaled sums between the locations and p-values")
+```
+
+
+
+
+
