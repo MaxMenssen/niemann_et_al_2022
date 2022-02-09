@@ -69,8 +69,8 @@ datsum <- dat_raw %>%
 ### Data
 The statistical analysis was run on the following data set called `datsum` with the variables:
 
-* _Var:_ Different treatments
-* _Plot:_ Plots on the field
+* _var:_ Different treatments
+* _plot:_ Plots on the field
 * _inpl:_ Location of the lettuce plants in the plots (0: border, 1: center )
 * _aphids_sum:_  sum of flying aphids per location in each plot
 * _n:_ Number of lettuce plants for each sum
